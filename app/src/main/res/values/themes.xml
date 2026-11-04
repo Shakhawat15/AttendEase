@@ -1,9 +1,10 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Base.Theme.AttendEase" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+<resources>
+    <style name="Theme.AttendEase" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorSecondary">@color/accent</item>
     </style>
 
-    <style name="Theme.AttendEase" parent="Base.Theme.AttendEase" />
+    <style name="Theme.AttendEase.Splash" parent="Theme.AttendEase">
+        <item name="android:windowBackground">@color/primary</item>
+    </style>
 </resources>
