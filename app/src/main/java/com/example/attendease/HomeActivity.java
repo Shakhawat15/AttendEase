@@ -221,8 +221,11 @@ public class HomeActivity extends AppCompatActivity implements CourseAdapter.OnC
 
     @Override
     public void onCourseClick(Course course) {
-        // Next step: open CourseDetailActivity with putExtra(courseId)
-        Toast.makeText(this, "Opening " + course.getName(), Toast.LENGTH_SHORT).show();
+        Intent intent = new Intent(this, CourseDetailActivity.class);
+        intent.putExtra(CourseDetailActivity.EXTRA_COURSE_ID, course.getId());
+        intent.putExtra(CourseDetailActivity.EXTRA_COURSE_NAME, course.getName());
+        intent.putExtra(CourseDetailActivity.EXTRA_COURSE_CODE, course.getCode());
+        startActivity(intent);
     }
 
     @Override
@@ -270,7 +273,7 @@ public class HomeActivity extends AppCompatActivity implements CourseAdapter.OnC
     }
 
     private void showSnackbar(String message) {
-        Snackbar.make(findViewById(android.R.id.content), message, Snackbar.LENGTH_SHORT).show();
+        Snackbar.make(findViewById(R.id.rvCourses), message, Snackbar.LENGTH_SHORT).show();
     }
 
     private String textOf(TextInputEditText et) {
