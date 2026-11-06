@@ -1,22 +1,28 @@
 package com.example.attendease;
 
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.GravityCompat;
+import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.navigation.NavigationView;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
@@ -42,6 +48,9 @@ public class HomeActivity extends AppCompatActivity implements CourseAdapter.OnC
     private CourseAdapter adapter;
 
     private MaterialToolbar toolbar;
+    private DrawerLayout drawerLayout;
+    private NavigationView navView;
+    private TextView tvNavName;
     private TextView tvEmpty;
     private ProgressBar progressBar;
 
@@ -52,7 +61,7 @@ public class HomeActivity extends AppCompatActivity implements CourseAdapter.OnC
 
         auth = FirebaseAuth.getInstance();
         FirebaseUser user = auth.getCurrentUser();
-        if (user == null) {          // safety: should never happen after Splash
+        if (user == null) {
             goToLogin();
             return;
         }
@@ -61,6 +70,8 @@ public class HomeActivity extends AppCompatActivity implements CourseAdapter.OnC
 
         toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+
+        setupDrawer(user);
 
         tvEmpty = findViewById(R.id.tvEmpty);
         progressBar = findViewById(R.id.progressBar);
@@ -71,9 +82,122 @@ public class HomeActivity extends AppCompatActivity implements CourseAdapter.OnC
         rvCourses.setAdapter(adapter);
 
         FloatingActionButton fab = findViewById(R.id.fabAddCourse);
-        fab.setOnClickListener(v -> showCourseDialog(null)); // null = add mode
+        fab.setOnClickListener(v -> showCourseDialog(null));
 
         loadUserName();
+    }
+
+    // ---------- Navigation drawer ----------
+
+    private void setupDrawer(FirebaseUser user) {
+        drawerLayout = findViewById(R.id.drawerLayout);
+        navView = findViewById(R.id.navView);
+
+        // Hamburger icon opens the drawer
+        toolbar.setNavigationOnClickListener(v -> drawerLayout.openDrawer(GravityCompat.START));
+
+        // Header views live inside the NavigationView's header layout
+        View header = navView.getHeaderView(0);
+        tvNavName = header.findViewById(R.id.tvNavName);
+        TextView tvNavEmail = header.findViewById(R.id.tvNavEmail);
+        tvNavEmail.setText(user.getEmail());
+
+        navView.setCheckedItem(R.id.nav_courses);
+        navView.setNavigationItemSelectedListener(this::onDrawerItemSelected);
+
+        // Back button closes the drawer first (instead of leaving the app)
+        OnBackPressedCallback closeDrawerCallback = new OnBackPressedCallback(false) {
+            @Override
+            public void handleOnBackPressed() {
+                drawerLayout.closeDrawer(GravityCompat.START);
+            }
+        };
+        getOnBackPressedDispatcher().addCallback(this, closeDrawerCallback);
+
+        drawerLayout.addDrawerListener(new DrawerLayout.SimpleDrawerListener() {
+            @Override
+            public void onDrawerOpened(@NonNull View drawerView) {
+                closeDrawerCallback.setEnabled(true);
+            }
+
+            @Override
+            public void onDrawerClosed(@NonNull View drawerView) {
+                closeDrawerCallback.setEnabled(false);
+            }
+        });
+    }
+
+    private boolean onDrawerItemSelected(@NonNull MenuItem item) {
+        drawerLayout.closeDrawer(GravityCompat.START);
+        int id = item.getItemId();
+
+        if (id == R.id.nav_courses) {
+            return true; // already here; keep it highlighted
+        } else if (id == R.id.nav_settings) {
+            startActivity(new Intent(this, SettingsActivity.class));
+        } else if (id == R.id.nav_share) {
+            shareApp();
+        } else if (id == R.id.nav_about) {
+            showAbout();
+        } else if (id == R.id.nav_logout) {
+            confirmLogout();
+        }
+        return false; // don't leave other items highlighted
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (navView != null) navView.setCheckedItem(R.id.nav_courses);
+    }
+
+    private void shareApp() {
+        Intent intent = new Intent(Intent.ACTION_SEND);
+        intent.setType("text/plain");
+        intent.putExtra(Intent.EXTRA_SUBJECT, "AttendEase - attendance tracker");
+        intent.putExtra(Intent.EXTRA_TEXT,
+                "Track class attendance easily with AttendEase!\nDownload: "
+                        + SettingsActivity.GITHUB_URL + "/releases");
+        startActivity(Intent.createChooser(intent, "Share app via"));
+    }
+
+    private void showAbout() {
+        String version;
+        try {
+            version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (PackageManager.NameNotFoundException e) {
+            version = "1.0";
+        }
+
+        new MaterialAlertDialogBuilder(this)
+                .setIcon(R.mipmap.ic_launcher_round)
+                .setTitle("AttendEase")
+                .setMessage("Version " + version + "\n\n"
+                        + "A simple attendance tracker for teachers: manage courses and students, "
+                        + "take daily attendance, and share reports.\n\n"
+                        + "Final lab project — Mobile Application and Development Lab (0613-410).")
+                .setPositiveButton("Close", null)
+                .setNeutralButton("GitHub", (d, w) -> {
+                    try {
+                        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(SettingsActivity.GITHUB_URL)));
+                    } catch (ActivityNotFoundException e) {
+                        showSnackbar("No browser found");
+                    }
+                })
+                .show();
+    }
+
+    private void confirmLogout() {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Logout")
+                .setMessage("Are you sure you want to logout?")
+                .setPositiveButton("Logout", (d, which) -> {
+                    auth.signOut();
+                    Toast.makeText(this, "Logged out", Toast.LENGTH_SHORT).show();
+                    goToLogin();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     // ---------- Real-time listener ----------
@@ -111,13 +235,12 @@ public class HomeActivity extends AppCompatActivity implements CourseAdapter.OnC
     @Override
     protected void onStop() {
         super.onStop();
-        // Stop listening when the screen is not visible (saves battery and data)
         if (coursesRef != null && coursesListener != null) {
             coursesRef.removeEventListener(coursesListener);
         }
     }
 
-    // Read the teacher's name once and show it under the title
+    // Read the teacher's name once: toolbar subtitle + drawer header
     private void loadUserName() {
         FirebaseHelper.getDatabase().getReference("users").child(uid)
                 .addListenerForSingleValueEvent(new ValueEventListener() {
@@ -126,6 +249,7 @@ public class HomeActivity extends AppCompatActivity implements CourseAdapter.OnC
                         User user = snapshot.getValue(User.class);
                         if (user != null && user.getName() != null) {
                             toolbar.setSubtitle("Hello, " + user.getName());
+                            tvNavName.setText(user.getName());
                         }
                     }
 
@@ -155,11 +279,10 @@ public class HomeActivity extends AppCompatActivity implements CourseAdapter.OnC
         AlertDialog dialog = new MaterialAlertDialogBuilder(this)
                 .setTitle(isEdit ? "Edit course" : "Add course")
                 .setView(view)
-                .setPositiveButton(isEdit ? "Update" : "Save", null) // set below
+                .setPositiveButton(isEdit ? "Update" : "Save", null)
                 .setNegativeButton("Cancel", null)
                 .create();
 
-        // Override the Save button so the dialog stays open when input is invalid
         dialog.setOnShowListener(d ->
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
                     String name = textOf(etName).trim();
@@ -206,7 +329,6 @@ public class HomeActivity extends AppCompatActivity implements CourseAdapter.OnC
     }
 
     private void deleteCourse(Course course) {
-        // Multi-path delete: removes the course AND its related data in one atomic operation
         Map<String, Object> updates = new HashMap<>();
         updates.put("courses/" + uid + "/" + course.getId(), null);
         updates.put("students/" + course.getId(), null);
@@ -236,37 +358,6 @@ public class HomeActivity extends AppCompatActivity implements CourseAdapter.OnC
     @Override
     public void onDeleteClick(Course course) {
         confirmDelete(course);
-    }
-
-    // ---------- Toolbar menu (Logout) ----------
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.menu_home, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
-        if (item.getItemId() == R.id.action_settings) {
-            startActivity(new Intent(this, SettingsActivity.class));
-            return true;
-        }
-
-        if (item.getItemId() == R.id.action_logout) {
-            new MaterialAlertDialogBuilder(this)
-                    .setTitle("Logout")
-                    .setMessage("Are you sure you want to logout?")
-                    .setPositiveButton("Logout", (d, which) -> {
-                        auth.signOut();
-                        Toast.makeText(this, "Logged out", Toast.LENGTH_SHORT).show();
-                        goToLogin();
-                    })
-                    .setNegativeButton("Cancel", null)
-                    .show();
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
     }
 
     // ---------- Helpers ----------

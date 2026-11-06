@@ -1,0 +1,48 @@
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['name', 'email'])"
+      }
+    },
+
+    "courses": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "$courseId": {
+          ".validate": "newData.hasChildren(['name', 'code'])"
+        }
+      }
+    },
+
+    "students": {
+      "$courseId": {
+        ".read": "auth != null && root.child('courses').child(auth.uid).child($courseId).exists()",
+        ".write": "auth != null && root.child('courses').child(auth.uid).child($courseId).exists()",
+        ".indexOn": ["roll"],
+        "$studentId": {
+          ".validate": "newData.hasChildren(['name', 'roll', 'guardianPhone'])",
+          "photo": {
+            ".validate": "newData.isString() && newData.val().length < 200000"
+          }
+        }
+      }
+    },
+
+    "attendance": {
+      "$courseId": {
+        ".read": "auth != null && root.child('courses').child(auth.uid).child($courseId).exists()",
+        ".write": "auth != null && root.child('courses').child(auth.uid).child($courseId).exists()",
+        "$date": {
+          ".validate": "$date.matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)",
+          "$studentId": {
+            ".validate": "newData.isBoolean()"
+          }
+        }
+      }
+    }
+  }
+}

@@ -22,7 +22,7 @@ import com.google.firebase.database.ValueEventListener;
 public class SettingsActivity extends AppCompatActivity {
 
     // TODO: change these to your own
-    private static final String GITHUB_URL = "https://github.com/Shakhawat15/AttendEase";
+    static final String GITHUB_URL = "https://github.com/Shakhawat15/AttendEase";
     private static final String DEV_EMAIL = "shsourov2000@gmail.com";
 
     private TextView tvAccountName;
