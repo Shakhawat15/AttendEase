@@ -216,7 +216,11 @@ public class CourseDetailActivity extends AppCompatActivity
 
     @Override
     public void onStudentClick(Student student) {
-        openAddEdit(student.getId());
+        Intent intent = new Intent(this, StudentReportActivity.class);
+        intent.putExtra(StudentReportActivity.EXTRA_COURSE_ID, courseId);
+        intent.putExtra(StudentReportActivity.EXTRA_COURSE_NAME, courseName);
+        intent.putExtra(StudentReportActivity.EXTRA_STUDENT_ID, student.getId());
+        startActivity(intent);
     }
 
     @Override
