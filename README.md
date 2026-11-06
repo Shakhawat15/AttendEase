@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/YOUR_USERNAME/AttendEase/releases/latest"><b>⬇ Download the APK (v1.0)</b></a>
+  <a href="https://github.com/Shakhawat15/AttendEase/releases/latest"><b>⬇ Download the APK (v1.0)</b></a>
 </p>
 
 ---
