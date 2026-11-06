@@ -248,6 +248,11 @@ public class HomeActivity extends AppCompatActivity implements CourseAdapter.OnC
 
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == R.id.action_settings) {
+            startActivity(new Intent(this, SettingsActivity.class));
+            return true;
+        }
+
         if (item.getItemId() == R.id.action_logout) {
             new MaterialAlertDialogBuilder(this)
                     .setTitle("Logout")

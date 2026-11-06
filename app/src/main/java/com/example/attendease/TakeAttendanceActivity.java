@@ -47,6 +47,7 @@ public class TakeAttendanceActivity extends AppCompatActivity
     private MaterialButton btnSave;
     private ProgressBar progressBar;
     private RecyclerView rvAttendance;
+    private boolean defaultPresent;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -89,6 +90,8 @@ public class TakeAttendanceActivity extends AppCompatActivity
         findViewById(R.id.btnAllPresent).setOnClickListener(v -> setAll(true));
         findViewById(R.id.btnAllAbsent).setOnClickListener(v -> setAll(false));
         btnSave.setOnClickListener(v -> saveAttendance());
+
+        defaultPresent = Prefs.isDefaultPresent(this);
 
         loadStudents();
     }
@@ -143,7 +146,7 @@ public class TakeAttendanceActivity extends AppCompatActivity
                 statusMap.clear();
                 for (Student s : studentList) {
                     Boolean saved = snapshot.child(s.getId()).getValue(Boolean.class);
-                    statusMap.put(s.getId(), saved == null || saved); // default: present
+                    statusMap.put(s.getId(), saved != null ? saved : defaultPresent); // default: present
                 }
 
                 tvExisting.setVisibility(alreadyTaken ? View.VISIBLE : View.GONE);
