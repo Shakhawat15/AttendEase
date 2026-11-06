@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_take_attendance"
+        android:icon="@drawable/ic_fact_check"
+        android:title="Take attendance"
+        app:iconTint="@color/white"
+        app:showAsAction="always" />
+</menu>

@@ -5,6 +5,8 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -21,23 +23,26 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.ValueEventListener;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class CourseDetailActivity extends AppCompatActivity
         implements StudentAdapter.OnStudentActionListener {
 
-    // Keys for the data passed in with putExtra()
     public static final String EXTRA_COURSE_ID = "course_id";
     public static final String EXTRA_COURSE_NAME = "course_name";
     public static final String EXTRA_COURSE_CODE = "course_code";
 
-    private String courseId;
-    private String courseCode;
-    private DatabaseReference studentsRef;
-    private ValueEventListener studentsListener;
+    private String courseId, courseName, courseCode;
+
+    private DatabaseReference studentsRef, attendanceRef;
+    private ValueEventListener studentsListener, attendanceListener;
 
     private final List<Student> studentList = new ArrayList<>();
     private StudentAdapter adapter;
+
+    private int classCount = 0;
 
     private RecyclerView rvStudents;
     private TextView tvEmpty;
@@ -48,9 +53,8 @@ public class CourseDetailActivity extends AppCompatActivity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_course_detail);
 
-        // Read the data sent from HomeActivity
         courseId = getIntent().getStringExtra(EXTRA_COURSE_ID);
-        String courseName = getIntent().getStringExtra(EXTRA_COURSE_NAME);
+        courseName = getIntent().getStringExtra(EXTRA_COURSE_NAME);
         courseCode = getIntent().getStringExtra(EXTRA_COURSE_CODE);
         if (courseId == null) {
             finish();
@@ -60,12 +64,13 @@ public class CourseDetailActivity extends AppCompatActivity
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
-            getSupportActionBar().setDisplayHomeAsUpEnabled(true); // back arrow
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
             getSupportActionBar().setTitle(courseName);
             getSupportActionBar().setSubtitle(courseCode);
         }
 
         studentsRef = FirebaseHelper.getDatabase().getReference("students").child(courseId);
+        attendanceRef = FirebaseHelper.getDatabase().getReference("attendance").child(courseId);
 
         tvEmpty = findViewById(R.id.tvEmpty);
         progressBar = findViewById(R.id.progressBar);
@@ -76,22 +81,23 @@ public class CourseDetailActivity extends AppCompatActivity
         rvStudents.setAdapter(adapter);
 
         FloatingActionButton fab = findViewById(R.id.fabAddStudent);
-        fab.setOnClickListener(v -> openAddEdit(null)); // null = add mode
+        fab.setOnClickListener(v -> openAddEdit(null));
     }
 
     @Override
     public boolean onSupportNavigateUp() {
-        finish(); // toolbar back arrow
+        finish();
         return true;
     }
 
-    // ---------- Real-time listener ----------
+    // ---------- Real-time listeners ----------
 
     @Override
     protected void onStart() {
         super.onStart();
         if (studentsRef == null) return;
 
+        // 1) Students
         studentsListener = new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
@@ -108,9 +114,7 @@ public class CourseDetailActivity extends AppCompatActivity
 
                 progressBar.setVisibility(View.GONE);
                 tvEmpty.setVisibility(studentList.isEmpty() ? View.VISIBLE : View.GONE);
-                if (getSupportActionBar() != null) {
-                    getSupportActionBar().setSubtitle(courseCode + "  •  " + studentList.size() + " students");
-                }
+                updateSubtitle();
             }
 
             @Override
@@ -120,6 +124,29 @@ public class CourseDetailActivity extends AppCompatActivity
             }
         };
         studentsRef.addValueEventListener(studentsListener);
+
+        // 2) Attendance -> percentage for each student
+        attendanceListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                Map<String, int[]> stats = new HashMap<>();   // studentId -> {present, total}
+                for (DataSnapshot day : snapshot.getChildren()) {          // each date
+                    for (DataSnapshot record : day.getChildren()) {        // each student that day
+                        Boolean present = record.getValue(Boolean.class);
+                        int[] s = stats.computeIfAbsent(record.getKey(), k -> new int[2]);
+                        s[1]++;                                            // total classes
+                        if (Boolean.TRUE.equals(present)) s[0]++;          // present count
+                    }
+                }
+                classCount = (int) snapshot.getChildrenCount();
+                adapter.setStats(stats);
+                updateSubtitle();
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) { }
+        };
+        attendanceRef.addValueEventListener(attendanceListener);
     }
 
     @Override
@@ -128,10 +155,21 @@ public class CourseDetailActivity extends AppCompatActivity
         if (studentsRef != null && studentsListener != null) {
             studentsRef.removeEventListener(studentsListener);
         }
+        if (attendanceRef != null && attendanceListener != null) {
+            attendanceRef.removeEventListener(attendanceListener);
+        }
     }
 
-    // Sort rolls as numbers when possible (so 2 comes before 10), otherwise as text
-    private static int compareRoll(String a, String b) {
+    private void updateSubtitle() {
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setSubtitle(courseCode + "  •  " + studentList.size()
+                    + " students  •  " + classCount + " classes");
+        }
+    }
+
+    // Sort rolls as numbers when possible (2 before 10), otherwise as text.
+    // Not private: TakeAttendanceActivity uses it too.
+    static int compareRoll(String a, String b) {
         if (a == null) a = "";
         if (b == null) b = "";
         try {
@@ -141,12 +179,36 @@ public class CourseDetailActivity extends AppCompatActivity
         }
     }
 
+    // ---------- Toolbar menu ----------
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.menu_course_detail, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == R.id.action_take_attendance) {
+            if (studentList.isEmpty()) {
+                showSnackbar("Add students first");
+                return true;
+            }
+            Intent intent = new Intent(this, TakeAttendanceActivity.class);
+            intent.putExtra(TakeAttendanceActivity.EXTRA_COURSE_ID, courseId);
+            intent.putExtra(TakeAttendanceActivity.EXTRA_COURSE_NAME, courseName);
+            startActivity(intent);
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
     // ---------- Navigation ----------
 
     private void openAddEdit(String studentId) {
         Intent intent = new Intent(this, AddEditStudentActivity.class);
         intent.putExtra(AddEditStudentActivity.EXTRA_COURSE_ID, courseId);
-        intent.putExtra(AddEditStudentActivity.EXTRA_STUDENT_ID, studentId); // null when adding
+        intent.putExtra(AddEditStudentActivity.EXTRA_STUDENT_ID, studentId);
         startActivity(intent);
     }
 
@@ -154,7 +216,7 @@ public class CourseDetailActivity extends AppCompatActivity
 
     @Override
     public void onStudentClick(Student student) {
-        openAddEdit(student.getId()); // edit mode
+        openAddEdit(student.getId());
     }
 
     @Override
@@ -164,7 +226,6 @@ public class CourseDetailActivity extends AppCompatActivity
             showSnackbar("No guardian phone saved");
             return;
         }
-        // Implicit intent: opens the phone's dialer with the number filled in
         Intent intent = new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + phone));
         try {
             startActivity(intent);
@@ -194,7 +255,6 @@ public class CourseDetailActivity extends AppCompatActivity
     }
 
     private void showSnackbar(String message) {
-        // Anchor to a view inside the CoordinatorLayout so the FAB moves up
         Snackbar.make(rvStudents, message, Snackbar.LENGTH_SHORT).show();
     }
 }
